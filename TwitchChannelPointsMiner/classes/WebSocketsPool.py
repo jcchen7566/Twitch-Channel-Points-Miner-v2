@@ -336,6 +336,11 @@ class WebSocketsPool:
                                 ws.events_predictions[event_id].bet.update_outcomes(
                                     event_dict["outcomes"]
                                 )
+                            if event_status == "RESOLVED" and "winning_outcome_id" in event_dict:
+                                ws.events_predictions[event_id].outcome_history_record(
+                                    event_dict["outcomes"],
+                                    event_dict["winning_outcome_id"]
+                                )
 
                     elif message.topic == "predictions-user-v1":
                         event_id = message.data["prediction"]["event_id"]

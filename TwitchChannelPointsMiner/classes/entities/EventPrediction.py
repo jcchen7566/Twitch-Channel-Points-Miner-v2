@@ -1,4 +1,5 @@
 from TwitchChannelPointsMiner.classes.entities.Bet import Bet
+from TwitchChannelPointsMiner.classes.entities.OutcomeStatsManager import OutcomeStatsManager
 from TwitchChannelPointsMiner.classes.entities.Streamer import Streamer
 from TwitchChannelPointsMiner.classes.Settings import Settings
 from TwitchChannelPointsMiner.utils import _millify, float_round
@@ -41,7 +42,7 @@ class EventPrediction(object):
         self.box_fillable = False
         self.bet_confirmed = False
         self.bet_placed = False
-        self.bet = Bet(outcomes, streamer.settings.bet)
+        self.bet = Bet(self.title, outcomes, streamer.settings.bet)
 
     def __repr__(self):
         return f"EventPrediction(event_id={self.event_id}, streamer={self.streamer}, title={self.title})"
@@ -61,6 +62,31 @@ class EventPrediction(object):
 
     def print_recap(self) -> str:
         return f"{self}\n\t\t{self.bet}\n\t\tResult: {self.result['string']}"
+
+    def outcome_history_record(self, outcomes, winning_outcome_id):
+        winning_outcome_title = None
+        stats_manager = OutcomeStatsManager()
+        # This outcome is from Twitch json
+        for outcome in outcomes:
+            if winning_outcome_id == outcome["id"]:
+                winning_outcome_title = outcome["title"]
+                break
+        if not winning_outcome_title:
+            print(f"FAIL: {outcomes}")
+            return
+        # This outcome is from local record
+        for outcome in self.bet.outcomes:
+            if outcome["title"] == winning_outcome_title:
+                is_win = True
+            else:
+                is_win = False
+
+            stats_manager.record(
+                self.streamer,
+                self.title,
+                outcome["title"],
+                is_win
+            )
 
     def parse_result(self, result) -> dict:
         result_type = result["type"]
