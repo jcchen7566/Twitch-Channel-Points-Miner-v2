@@ -2,7 +2,6 @@ import json
 import logging
 import random
 import time
-# import os
 from threading import Thread, Timer
 # from pathlib import Path
 
@@ -21,6 +20,7 @@ from TwitchChannelPointsMiner.utils import (
 )
 
 logger = logging.getLogger(__name__)
+
 
 
 class WebSocketsPool:
@@ -337,9 +337,14 @@ class WebSocketsPool:
                                     event_dict["outcomes"]
                                 )
                             if event_status == "RESOLVED" and "winning_outcome_id" in event_dict:
+                                ws.events_predictions[event_id].winning_outcome_id = event_dict["winning_outcome_id"]
                                 ws.events_predictions[event_id].outcome_history_record(
                                     event_dict["outcomes"],
                                     event_dict["winning_outcome_id"]
+                                )
+                                ws.events_predictions[event_id].bet.log_winning_outcome_id(
+                                    event_id=event_id,
+                                    winning_outcome_id=event_dict["winning_outcome_id"],
                                 )
 
                     elif message.topic == "predictions-user-v1":
@@ -352,6 +357,13 @@ class WebSocketsPool:
                             ):
                                 points = event_prediction.parse_result(
                                     message.data["prediction"]["result"]
+                                )
+                                event_prediction.bet.log_bet_result(
+                                    event_id=event_id,
+                                    result_type=event_prediction.result["type"],
+                                    points_won=points["won"],
+                                    points_gained=points["gained"],
+                                    winning_outcome_id=event_prediction.winning_outcome_id,
                                 )
 
                                 decision = event_prediction.bet.get_decision()

@@ -18,6 +18,7 @@ class EventPrediction(object):
         "bet_confirmed",
         "bet_placed",
         "bet",
+        "winning_outcome_id",
     ]
 
     def __init__(
@@ -42,7 +43,8 @@ class EventPrediction(object):
         self.box_fillable = False
         self.bet_confirmed = False
         self.bet_placed = False
-        self.bet = Bet(self.title, outcomes, streamer.settings.bet)
+        self.bet = Bet(self.title, outcomes, streamer.settings.bet, streamer.username)
+        self.winning_outcome_id = None
 
     def __repr__(self):
         return f"EventPrediction(event_id={self.event_id}, streamer={self.streamer}, title={self.title})"

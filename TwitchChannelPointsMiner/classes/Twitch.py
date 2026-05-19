@@ -168,15 +168,23 @@ class Twitch(object):
                 raise StreamerIsOfflineException
 
     def get_stream_info(self, streamer):
-        json_data = copy.deepcopy(
-            GQLOperations.VideoPlayerStreamInfoOverlayChannel)
+        json_data = copy.deepcopy(GQLOperations.VideoPlayerStreamInfoOverlayChannel)
         json_data["variables"] = {"channel": streamer.username}
         response = self.post_gql_request(json_data)
-        if response != {}:
-            if response["data"]["user"]["stream"] is None:
+        
+        # 檢查 response 是否為空，且必須包含 'data' 鍵
+        if response and "data" in response:
+            # 安全地檢查 user 是否存在
+            user = response["data"].get("user")
+            if user is None or user.get("stream") is None:
                 raise StreamerIsOfflineException
-            else:
-                return response["data"]["user"]
+            return user
+        else:
+            # 如果沒有 data，記錄錯誤訊息以便排查
+            error_msg = response.get("errors") or response
+            logger.error(f"GQL Response missing 'data'. Response content: {error_msg}")
+            # 這裡可以選擇拋出異常或回傳 None，視乎你想讓程式崩潰還是跳過
+            raise StreamerIsOfflineException
 
     def check_streamer_online(self, streamer):
         if time.time() < streamer.offline_at + 60:
@@ -710,6 +718,14 @@ class Twitch(object):
         if event.status == "ACTIVE":
             skip, compared_value = event.bet.skip()
             if skip is True:
+                event.bet.log_bet_decision(
+                    event_id=event.event_id,
+                    streamer=event.streamer,
+                    balance_before=event.streamer.channel_points,
+                    decision=decision,
+                    status="SKIPPED",
+                    status_reason=f"filter_condition({event.bet.settings.filter_condition}) current={compared_value}",
+                )
                 logger.info(
                     f"Skip betting for the event {event}",
                     extra={
@@ -752,6 +768,14 @@ class Twitch(object):
                         and response["data"]["makePrediction"]["error"] is not None
                     ):
                         error_code = response["data"]["makePrediction"]["error"]["code"]
+                        event.bet.log_bet_decision(
+                            event_id=event.event_id,
+                            streamer=event.streamer,
+                            balance_before=event.streamer.channel_points,
+                            decision=decision,
+                            status="FAILED",
+                            status_reason=f"api_error({error_code})",
+                        )
                         logger.error(
                             f"Failed to place bet, error: {error_code}",
                             extra={
@@ -759,7 +783,24 @@ class Twitch(object):
                                 "event": Events.BET_FAILED,
                             },
                         )
+                    else:
+                        event.bet.log_bet_decision(
+                            event_id=event.event_id,
+                            streamer=event.streamer,
+                            balance_before=event.streamer.channel_points,
+                            decision=decision,
+                            status="PLACED",
+                            status_reason="",
+                        )
                 else:
+                    event.bet.log_bet_decision(
+                        event_id=event.event_id,
+                        streamer=event.streamer,
+                        balance_before=event.streamer.channel_points,
+                        decision=decision,
+                        status="TOO_SMALL",
+                        status_reason="bet_amount_below_10",
+                    )
                     logger.info(
                         f"Bet won't be placed as the amount {_millify(decision['amount'])} is less than the minimum required 10",
                         extra={
@@ -768,6 +809,14 @@ class Twitch(object):
                         },
                     )
         else:
+            event.bet.log_bet_decision(
+                event_id=event.event_id,
+                streamer=event.streamer,
+                balance_before=event.streamer.channel_points,
+                decision=decision,
+                status="INACTIVE_EVENT",
+                status_reason=f"event_status({event.status})",
+            )
             logger.info(
                 f"Oh no! The event is not active anymore! Current status: {event.status}",
                 extra={
