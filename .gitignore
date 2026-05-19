@@ -155,3 +155,6 @@ analytics/*
 keep_replit_alive.py
 .replit
 replit.nix
+
+# Runtime outcome stats snapshot
+TwitchChannelPointsMiner/classes/entities/outcome_stats.json

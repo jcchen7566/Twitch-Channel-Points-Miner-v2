@@ -12,6 +12,8 @@ class OutcomeStats:
     def __init__(self, decay_half_life_hours=12):
         self.wins_weighted = 0.0
         self.total_weighted = 0.0
+        self.wins_raw = 0.0
+        self.total_raw = 0.0
         self.last_update = 0.0
         self.decay_constant = math.log(2) / (decay_half_life_hours * 3600)
 
@@ -28,12 +30,17 @@ class OutcomeStats:
     def record_result(self, is_win: bool):
         self._apply_decay()
         self.total_weighted += 1.0
+        self.total_raw += 1.0
         if is_win:
             self.wins_weighted += 1.0
+            self.wins_raw += 1.0
 
     def get_effective_stats(self):
         self._apply_decay()
         return self.wins_weighted, self.total_weighted
+
+    def get_raw_stats(self):
+        return self.wins_raw, self.total_raw
 
     def win_rate(self):
         self._apply_decay()
@@ -44,6 +51,8 @@ class OutcomeStats:
         return {
             "wins_w": float(self.wins_weighted),
             "total_w": float(self.total_weighted),
+            "wins_raw": float(self.wins_raw),
+            "total_raw": float(self.total_raw),
             "last_update": float(self.last_update),
         }
 
@@ -52,6 +61,8 @@ class OutcomeStats:
         stats = OutcomeStats()
         stats.wins_weighted = float(data.get("wins_w", data.get("wins", 0.0)))
         stats.total_weighted = float(data.get("total_w", data.get("total", 0.0)))
+        stats.wins_raw = float(data.get("wins_raw", stats.wins_weighted))
+        stats.total_raw = float(data.get("total_raw", stats.total_weighted))
         stats.last_update = data.get("last_update", 0.0)
         return stats
 
