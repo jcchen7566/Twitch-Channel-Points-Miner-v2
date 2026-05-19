@@ -1,4 +1,5 @@
 import copy
+import json
 import math
 import os
 import sqlite3
@@ -14,6 +15,40 @@ from TwitchChannelPointsMiner.classes.entities.smart_bet_strategies.registry imp
 
 
 SMART_BET_STRATEGIES = load_strategies()
+SMART_BET_STRATEGY_MAP_PATH = os.getenv(
+    "SMART_BET_STRATEGY_MAP_PATH",
+    os.path.join(os.path.dirname(__file__), "smart_bet_strategies", "streamer_strategy_map.json"),
+)
+_SMART_BET_STRATEGY_MAP_CACHE = {"mtime": None, "data": {}}
+
+
+def _load_dynamic_streamer_strategy_map(path: str) -> dict:
+    if not path:
+        return {}
+    try:
+        st = os.stat(path)
+    except OSError:
+        return {}
+
+    mtime = st.st_mtime
+    if _SMART_BET_STRATEGY_MAP_CACHE["mtime"] == mtime:
+        return _SMART_BET_STRATEGY_MAP_CACHE["data"]
+
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            raw = json.load(f)
+    except Exception:
+        raw = {}
+
+    data = {}
+    if isinstance(raw, dict):
+        for k, v in raw.items():
+            if isinstance(k, str) and isinstance(v, str) and k.strip() and v.strip():
+                data[k.strip().lower()] = v.strip()
+
+    _SMART_BET_STRATEGY_MAP_CACHE["mtime"] = mtime
+    _SMART_BET_STRATEGY_MAP_CACHE["data"] = data
+    return data
 
 
 class Strategy(Enum):
@@ -102,6 +137,7 @@ class BetSettings(object):
         "streamer_modifiers",
         "use_ev_sizing",
         "streamer_strategy_map",
+        "streamer_strategy_map_path",
     ]
 
     def __init__(
@@ -125,6 +161,7 @@ class BetSettings(object):
         streamer_modifiers: dict = None,
         use_ev_sizing: bool = None,
         streamer_strategy_map: dict = None,
+        streamer_strategy_map_path: str = None,
     ):
         self.strategy = strategy
         self.percentage = percentage
@@ -145,6 +182,7 @@ class BetSettings(object):
         self.streamer_modifiers = streamer_modifiers
         self.use_ev_sizing = use_ev_sizing
         self.streamer_strategy_map = streamer_strategy_map
+        self.streamer_strategy_map_path = streamer_strategy_map_path
 
     def default(self):
         self.strategy = self.strategy if self.strategy is not None else Strategy.SMART
@@ -179,6 +217,11 @@ class BetSettings(object):
 
         self.use_ev_sizing = self.use_ev_sizing if self.use_ev_sizing is not None else True
         self.streamer_strategy_map = self.streamer_strategy_map if self.streamer_strategy_map is not None else {}
+        self.streamer_strategy_map_path = (
+            self.streamer_strategy_map_path
+            if self.streamer_strategy_map_path is not None
+            else SMART_BET_STRATEGY_MAP_PATH
+        )
 
     def __repr__(self):
         return (
@@ -718,7 +761,14 @@ class Bet(object):
 
     def _resolve_streamer_strategy(self):
         key = (self.streamer_name or "").strip().lower()
-        mapped = self.settings.streamer_strategy_map.get(key) if key else None
+
+        mapped = None
+        if key:
+            mapped = self.settings.streamer_strategy_map.get(key)
+            if not mapped:
+                dynamic_map = _load_dynamic_streamer_strategy_map(self.settings.streamer_strategy_map_path)
+                mapped = dynamic_map.get(key)
+
         if not mapped:
             return SMART_BET_STRATEGIES.get("default_simple_ev")
         st = SMART_BET_STRATEGIES.get(mapped)
