@@ -10,6 +10,10 @@ from millify import millify
 
 from TwitchChannelPointsMiner.utils import float_round
 from TwitchChannelPointsMiner.classes.entities.OutcomeStatsManager import OutcomeStatsManager
+from TwitchChannelPointsMiner.classes.entities.smart_bet_strategies.registry import load_strategies
+
+
+SMART_BET_STRATEGIES = load_strategies()
 
 
 class Strategy(Enum):
@@ -97,6 +101,7 @@ class BetSettings(object):
         "odds_cap_penalty",
         "streamer_modifiers",
         "use_ev_sizing",
+        "streamer_strategy_map",
     ]
 
     def __init__(
@@ -119,6 +124,7 @@ class BetSettings(object):
         odds_cap_penalty: float = None,
         streamer_modifiers: dict = None,
         use_ev_sizing: bool = None,
+        streamer_strategy_map: dict = None,
     ):
         self.strategy = strategy
         self.percentage = percentage
@@ -138,6 +144,7 @@ class BetSettings(object):
         self.odds_cap_penalty = odds_cap_penalty
         self.streamer_modifiers = streamer_modifiers
         self.use_ev_sizing = use_ev_sizing
+        self.streamer_strategy_map = streamer_strategy_map
 
     def default(self):
         self.strategy = self.strategy if self.strategy is not None else Strategy.SMART
@@ -171,6 +178,7 @@ class BetSettings(object):
         }
 
         self.use_ev_sizing = self.use_ev_sizing if self.use_ev_sizing is not None else True
+        self.streamer_strategy_map = self.streamer_strategy_map if self.streamer_strategy_map is not None else {}
 
     def __repr__(self):
         return (
@@ -213,6 +221,7 @@ class Bet(object):
         "last_odds_eff",
         "last_ev_second_best",
         "last_ev_gap",
+        "last_streamer_strategy",
     ]
 
     def __init__(self, title: str, outcomes: list, settings: BetSettings, streamer_name: str = ""):
@@ -245,6 +254,7 @@ class Bet(object):
         self.last_odds_eff = 0.0
         self.last_ev_second_best = 0.0
         self.last_ev_gap = 0.0
+        self.last_streamer_strategy = "default_simple_ev"
 
     def update_outcomes(self, outcomes):
         for index in range(0, len(self.outcomes)):
@@ -706,10 +716,17 @@ class Bet(object):
             return ev_adj >= 0.08 and confidence >= 0.62 and ratio < 1.05
         return ev_adj >= 0.15 and confidence >= 0.72 and ratio < 0.95
 
-    def _smart_choice(self) -> int:
+    def _resolve_streamer_strategy(self):
+        key = (self.streamer_name or "").strip().lower()
+        mapped = self.settings.streamer_strategy_map.get(key) if key else None
+        if not mapped:
+            return SMART_BET_STRATEGIES.get("default_simple_ev")
+        st = SMART_BET_STRATEGIES.get(mapped)
+        return st if st is not None else SMART_BET_STRATEGIES.get("default_simple_ev")
+
+    def _build_smart_details(self):
         stats_manager = OutcomeStatsManager()
         details = []
-
         for outcome in self.outcomes:
             raw_odds = float(outcome[OutcomeKeys.ODDS] or 0.0)
             if raw_odds <= 1.0:
@@ -724,7 +741,6 @@ class Bet(object):
             wins_w, total_w = stats_obj.get_effective_stats() if stats_obj else (0.0, 0.0)
 
             implied_prob = 1.0 / raw_odds
-            # 最簡單貝葉斯平滑：避免樣本太少時勝率失真
             prior_strength = 5.0
             p_hist = (wins_w + (implied_prob * prior_strength)) / (total_w + prior_strength)
             p_hist = max(0.03, min(0.95, p_hist))
@@ -748,8 +764,13 @@ class Bet(object):
                     "odds_eff": raw_odds,
                 }
             )
+        return details
 
-        best_index = max(range(len(details)), key=lambda idx: details[idx]["ev"])
+    def _smart_choice(self) -> int:
+        details = self._build_smart_details()
+        strategy = self._resolve_streamer_strategy()
+        best_index = strategy.choose(self, details)
+
         sorted_evs = sorted([d["ev"] for d in details], reverse=True)
         second_best = sorted_evs[1] if len(sorted_evs) > 1 else sorted_evs[0]
 
@@ -766,14 +787,16 @@ class Bet(object):
         self.last_ev_adj = d["ev"]
         self.last_odds_regime = d["odds_regime"]
         self.last_entry_rule_passed = d["entry_ok"]
-        self.last_model_version = "v4_simple_ev"
+        self.last_model_version = "v5_streamer_strategy"
         self.last_p_base = d["p_base"]
         self.last_ev_raw = d["ev_raw"]
         self.last_odds_eff = d["odds_eff"]
         self.last_ev_second_best = second_best
         self.last_ev_gap = d["ev"] - second_best
+        self.last_streamer_strategy = strategy.name if strategy is not None else "default_simple_ev"
 
         return best_index
+
 
     def _calc_sized_amount(self, balance: int) -> tuple[int, float, str]:
         if not self.settings.use_ev_sizing:
@@ -849,9 +872,14 @@ class Bet(object):
             self.decision["id"] = self.outcomes[index]["id"]
 
             if self.settings.strategy == Strategy.SMART:
-                final_amount, multiplier, reason = self._calc_sized_amount(balance)
+                strategy = self._resolve_streamer_strategy()
+                idx = self.decision["choice"]
+                details = self._build_smart_details()
+                selected_detail = details[idx]
+                final_amount, multiplier, reason, tier = strategy.size(self, balance, selected_detail)
                 self.last_bet_multiplier = multiplier
                 self.last_size_reason = reason
+                self.last_bet_tier = tier
             else:
                 # 非 SMART 模式維持舊行為
                 base_amount = int(balance * (self.settings.percentage / 100))
