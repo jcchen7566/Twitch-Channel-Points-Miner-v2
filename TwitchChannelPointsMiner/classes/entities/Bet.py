@@ -14,12 +14,37 @@ from TwitchChannelPointsMiner.classes.entities.OutcomeStatsManager import Outcom
 from TwitchChannelPointsMiner.classes.entities.smart_bet_strategies.registry import load_strategies
 
 
-SMART_BET_STRATEGIES = load_strategies()
+_SMART_BET_STRATEGY_MAP_CACHE = {"mtime": None, "data": {}}
+_STRATEGIES_CACHE = {"mtime": None, "data": {}}
+
 SMART_BET_STRATEGY_MAP_PATH = os.getenv(
     "SMART_BET_STRATEGY_MAP_PATH",
     os.path.join(os.path.dirname(__file__), "smart_bet_strategies", "streamer_strategy_map.json"),
 )
-_SMART_BET_STRATEGY_MAP_CACHE = {"mtime": None, "data": {}}
+
+
+def _get_latest_strategies():
+    strategies_dir = os.path.join(os.path.dirname(__file__), "smart_bet_strategies")
+    try:
+        # Check max mtime of all .py files to detect content changes
+        py_files = [
+            os.path.join(strategies_dir, f)
+            for f in os.listdir(strategies_dir)
+            if f.endswith(".py") and f not in ["__init__.py", "base.py", "registry.py"]
+        ]
+        if not py_files:
+            return _STRATEGIES_CACHE["data"]
+        mtime = max(os.path.getmtime(f) for f in py_files)
+    except OSError:
+        return _STRATEGIES_CACHE["data"]
+
+    if _STRATEGIES_CACHE["mtime"] == mtime:
+        return _STRATEGIES_CACHE["data"]
+
+    # Reload all strategies from disk (registry.py now handles importlib.reload)
+    _STRATEGIES_CACHE["data"] = load_strategies()
+    _STRATEGIES_CACHE["mtime"] = mtime
+    return _STRATEGIES_CACHE["data"]
 
 
 def _load_dynamic_streamer_strategy_map(path: str) -> dict:
@@ -769,10 +794,11 @@ class Bet(object):
                 dynamic_map = _load_dynamic_streamer_strategy_map(self.settings.streamer_strategy_map_path)
                 mapped = dynamic_map.get(key)
 
+        strategies = _get_latest_strategies()
         if not mapped:
-            return SMART_BET_STRATEGIES.get("default_simple_ev")
-        st = SMART_BET_STRATEGIES.get(mapped)
-        return st if st is not None else SMART_BET_STRATEGIES.get("default_simple_ev")
+            return strategies.get("default_simple_ev")
+        st = strategies.get(mapped)
+        return st if st is not None else strategies.get("default_simple_ev")
 
     def _build_smart_details(self):
         stats_manager = OutcomeStatsManager()
