@@ -21,6 +21,7 @@ def run_backtest(events: list, strategy, config: BacktestConfig) -> BacktestResu
 
     state = OnlineStats()
     strategy.on_backtest_start()
+    strategy.preload_history(events)
 
     total_bet = 0.0
     total_gain = 0.0

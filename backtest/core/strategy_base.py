@@ -43,6 +43,9 @@ class StrategyBase(ABC):
     def on_backtest_start(self) -> None:
         return
 
+    def preload_history(self, events: list) -> None:
+        return
+
     @abstractmethod
     def pick(self, event, state: OnlineStats):
         raise NotImplementedError

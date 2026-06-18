@@ -158,3 +158,12 @@ replit.nix
 
 # Runtime outcome stats snapshot
 TwitchChannelPointsMiner/classes/entities/outcome_stats.json
+
+# Local bet database (contains real betting data)
+bet_logs.sqlite
+
+# Local analysis artifacts
+*.csv
+
+# Local tool config
+.antigravitycli/

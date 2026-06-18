@@ -11,10 +11,14 @@ class SoftmaxBandit(StrategyBase):
         self.arms = {k: {"n": 0, "avg": 0.0} for k in ("A", "B", "C", "D", "E")}
 
     def _arm(self, odds):
-        if odds <= 1.8: return "A"
-        if odds <= 2.2: return "B"
-        if odds <= 3.0: return "C"
-        if odds <= 5.0: return "D"
+        if odds <= 1.8:
+            return "A"
+        if odds <= 2.2:
+            return "B"
+        if odds <= 3.0:
+            return "C"
+        if odds <= 5.0:
+            return "D"
         return "E"
 
     def pick(self, event, state):
