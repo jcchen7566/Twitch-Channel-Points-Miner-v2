@@ -466,7 +466,10 @@ class Bet(object):
 
     @staticmethod
     def _db_path():
-        return "bet_logs.sqlite"
+        env_path = os.getenv("BET_LOGS_DB_PATH")
+        if env_path:
+            return os.path.abspath(os.path.expanduser(env_path))
+        return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "bet_logs.sqlite"))
 
     @staticmethod
     def _ensure_db_schema(conn):
