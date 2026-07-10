@@ -1,12 +1,12 @@
 {
-  "slrabbit99": "slrabbit99_prop_family_guard_sizer_v3",
-  "bbbb87": "whale_watcher",
-  "greentea": "softmax_bandit_v1",
-  "godjj": "streamer_specialist_v2",
+  "slrabbit99": "slrabbit99_prop_family_guard_sizer_v2",
+  "bbbb87": "empirical_bayes_shrinkage",
+  "greentea": "ml_feature_optimized",
+  "godjj": "smart_crowd_follower",
   "gearbaby1010": "smart_crowd_follower",
-  "uzra": "multi_alpha_regime_expert_v1",
+  "uzra": "softmax_bandit_v1",
   "mimiluckying": "multi_alpha_regime_expert_v1",
-  "roger9527": "game_regime_learner",
+  "roger9527": "softmax_bandit_v1",
   "never_loses": "empirical_bayes_shrinkage",
   "ggbb528": "ml_feature_optimized"
 }
