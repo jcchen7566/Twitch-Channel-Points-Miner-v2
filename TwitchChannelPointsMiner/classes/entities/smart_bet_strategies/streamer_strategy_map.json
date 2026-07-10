@@ -1,11 +1,11 @@
 {
   "slrabbit99": "slrabbit99_margin_softmax_v1",
-  "bbbb87": "empirical_bayes_shrinkage",
+  "bbbb87": "ml_feature_optimized",
   "greentea": "ml_feature_optimized",
   "godjj": "smart_crowd_follower",
   "gearbaby1010": "smart_crowd_follower",
   "uzra": "softmax_bandit_v1",
-  "mimiluckying": "multi_alpha_regime_expert_v1",
+  "mimiluckying": "smart_crowd_follower",
   "roger9527": "softmax_bandit_v1",
   "never_loses": "empirical_bayes_shrinkage",
   "ggbb528": "ml_feature_optimized"
