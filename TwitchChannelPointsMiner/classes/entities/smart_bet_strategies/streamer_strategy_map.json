@@ -5,7 +5,7 @@
   "godjj": "smart_crowd_follower",
   "gearbaby1010": "smart_crowd_follower",
   "uzra": "softmax_bandit_v1",
-  "mimiluckying": "smart_crowd_follower",
+  "mimiluckying": "ml_feature_optimized",
   "roger9527": "softmax_bandit_v1",
   "never_loses": "empirical_bayes_shrinkage",
   "ggbb528": "ml_feature_optimized"
