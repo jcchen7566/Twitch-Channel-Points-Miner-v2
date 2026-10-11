@@ -820,7 +820,7 @@ class Bet(object):
             wins_w, total_w = stats_obj.get_effective_stats() if stats_obj else (0.0, 0.0)
 
             implied_prob = 1.0 / raw_odds
-            prior_strength = 5.0
+            prior_strength = 12.0
             p_hist = (wins_w + (implied_prob * prior_strength)) / (total_w + prior_strength)
             p_hist = max(0.03, min(0.95, p_hist))
 
@@ -845,10 +845,14 @@ class Bet(object):
             )
         return details
 
-    def _smart_choice(self) -> int:
+    def _smart_choice(self):
         details = self._build_smart_details()
         strategy = self._resolve_streamer_strategy()
         best_index = strategy.choose(self, details)
+        if best_index is None:
+            # Strategy declined to bet (e.g. whale pick not in its filter window).
+            self.last_streamer_strategy = strategy.name if strategy is not None else "default_simple_ev"
+            return None
 
         sorted_evs = sorted([d["ev"] for d in details], reverse=True)
         second_best = sorted_evs[1] if len(sorted_evs) > 1 else sorted_evs[0]
