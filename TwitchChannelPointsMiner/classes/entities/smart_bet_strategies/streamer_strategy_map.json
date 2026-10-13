@@ -1,12 +1,12 @@
 {
-  "slrabbit99": "slrabbit99_omega_60k_v5",
-  "bbbb87": "roger9527_custom_v4",
+  "slrabbit99": "slrabbit99_omega_60k",
+  "bbbb87": "bbbb87_online_model_v2",
   "greentea": "smart_crowd_follower",
   "godjj": "smart_crowd_follower",
-  "gearbaby1010": "golden_regime_contrarian",
-  "uzra": "dynamic_rank_bias",
+  "gearbaby1010": "golden_regime_contrarian_v2",
+  "uzra": "empirical_bayes_shrinkage",
   "mimiluckying": "ml_feature_optimized",
-  "roger9527": "softmax_bandit",
+  "roger9527": "softmax_bandit_v1",
   "never_loses": "empirical_bayes_shrinkage",
   "ggbb528": "ml_feature_optimized"
 }
