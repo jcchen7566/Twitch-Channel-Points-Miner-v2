@@ -634,8 +634,8 @@ class Bet(object):
                     (
                         datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                         str(result_type),
-                        int(points_won),
-                        int(points_gained),
+                        int(points_won or 0),
+                        int(points_gained or 0),
                         winner_id,
                         winner_id,
                         f"RESOLVED_{result_type}",

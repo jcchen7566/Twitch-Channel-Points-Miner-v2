@@ -99,7 +99,7 @@ class EventPrediction(object):
         )
         points["won"] = (
             result["points_won"]
-            if result["points_won"] or result_type == "REFUND"
+            if result["points_won"] and result_type != "REFUND"
             else 0
         )
         points["gained"] = (
