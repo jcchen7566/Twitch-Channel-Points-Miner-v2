@@ -5,6 +5,7 @@ without manual labels or NLP. Uses character 2-grams which capture shared
 substrings across titles (e.g. 誰會贏 → 誰會, 會贏; baseball props → 安打/全壘打/失分/ER).
 """
 
+import math
 from collections import defaultdict
 
 import numpy as np
@@ -109,3 +110,145 @@ def cluster_title(title: str) -> str:
 def get_event_regime(event) -> str:
     """Legacy composite key: STREAMER_GAME."""
     return f"{event.streamer}_{cluster_title(event.main_title)}"
+
+
+# ── Online Dynamic Cluster Manager (sklearn-free) ─────────────────────
+
+class _Cluster:
+    """An online cluster of titles — maintains cumulative n-gram centroid."""
+    __slots__ = ("name", "ngram_sum", "count")
+
+    def __init__(self, name: str = ""):
+        self.name = name
+        self.ngram_sum: dict[str, float] = defaultdict(float)
+        self.count = 0
+
+    def add(self, vec: dict[str, float]) -> None:
+        for k, v in vec.items():
+            self.ngram_sum[k] += v
+        self.count += 1
+
+    @property
+    def centroid(self) -> dict[str, float]:
+        if self.count == 0:
+            return {}
+        return {k: v / self.count for k, v in self.ngram_sum.items()}
+
+    def cosine(self, vec: dict[str, float]) -> float:
+        cent = self.centroid
+        if not cent or not vec:
+            return 0.0
+        dot = sum(v * cent.get(k, 0.0) for k, v in vec.items())
+        n1 = math.sqrt(sum(v * v for v in vec.values()))
+        n2 = math.sqrt(sum(v * v for v in cent.values()))
+        if n1 == 0 or n2 == 0:
+            return 0.0
+        return dot / (n1 * n2)
+
+
+# Default keyword fallback for slrabbit99 seed clusters (0-6).
+# Excludes CATCH_ALL — anything unmatched by keywords becomes a dynamic cluster.
+_SLRABBIT_KEYWORDS = [
+    (["誰會贏", "哪邊會贏", " vs ", "誰贏"], 0),
+    (["失分", "勝投", "全壘打", "安打", "觸身", "er ", "er)"], 1),
+    (["命一關不刷", "一關不刷"], 2),
+    (["第幾名", "開到幾星", "抽"], 3),
+    (["會不會過關", "能不能過關", "一把決勝負"], 4),
+    (["最穩的那台"], 5),
+    (["丟骨頭"], 6),
+]
+
+
+def _default_keyword_fallback(title: str) -> int | None:
+    """Match title against v1 keyword patterns. Returns seed idx or None."""
+    t = (title or "").strip().lower()
+    for keywords, idx in _SLRABBIT_KEYWORDS:
+        if any(k in t for k in keywords):
+            return idx
+    return None
+
+
+class DynamicClusterManager:
+    """Online dynamic clustering for short CJK titles.
+
+    Hybrid approach:
+    1. Try n-gram cosine similarity to all existing cluster centroids.
+    2. If best match >= threshold → assign there.
+    3. Else try keyword fallback (for seed clusters) → assign there.
+    4. Else create a new dynamic cluster.
+
+    Seed clusters are pre-populated from keyword examples. New clusters
+    form organically when titles don't resemble any existing cluster.
+    """
+
+    def __init__(
+        self,
+        seed_examples: list[list[str]],
+        threshold: float = 0.25,
+        keyword_fallback=None,
+    ):
+        self.threshold = threshold
+        self._keyword_fallback = keyword_fallback
+        self.clusters: list[_Cluster] = []
+        self.title_map: dict[str, int] = {}
+
+        for examples in seed_examples:
+            c = _Cluster()
+            for ex in examples:
+                v = self._ngrams(ex)
+                if any(x > 0 for x in v.values()):
+                    c.add(v)
+            self.clusters.append(c)
+
+    @staticmethod
+    def _ngrams(text: str, n_range=(2, 3)) -> dict[str, float]:
+        """Bigram + trigram frequency vector (no unigrams — too noisy)."""
+        text = text.lower().strip()
+        g: dict[str, float] = defaultdict(float)
+        for n in range(n_range[0], n_range[1] + 1):
+            for i in range(len(text) - n + 1):
+                g[text[i:i + n]] += 1.0
+        return dict(g)
+
+    def assign(self, title: str) -> int:
+        """Return cluster index — may create a new dynamic cluster."""
+        cached = self.title_map.get(title)
+        if cached is not None:
+            return cached
+
+        vec = self._ngrams(title)
+
+        # Step 1 — n-gram cosine to all existing centroids
+        best_idx = -1
+        best_sim = -1.0
+        for i, c in enumerate(self.clusters):
+            sim = c.cosine(vec)
+            if sim > best_sim:
+                best_sim = sim
+                best_idx = i
+
+        # Step 2 — keyword fallback for seed clusters
+        if best_sim < self.threshold and self._keyword_fallback is not None:
+            kw = self._keyword_fallback(title)
+            if kw is not None:
+                self.clusters[kw].add(vec)
+                self.title_map[title] = kw
+                return kw
+
+        # Step 3 — threshold sufficient → assign to best match
+        if best_sim >= self.threshold:
+            self.clusters[best_idx].add(vec)
+            self.title_map[title] = best_idx
+            return best_idx
+
+        # Step 4 — truly novel → spawn new dynamic cluster
+        new_idx = len(self.clusters)
+        c = _Cluster(f"dyn_{new_idx}")
+        c.add(vec)
+        self.clusters.append(c)
+        self.title_map[title] = new_idx
+        return new_idx
+
+    @property
+    def n_clusters(self) -> int:
+        return len(self.clusters)
