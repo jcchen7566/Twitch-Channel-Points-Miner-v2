@@ -118,6 +118,7 @@ class Bbbb87OnlineModelV2(SmartBetStrategyBase):
                         e.winning_outcome_id,
                         o.outcome_odds,
                         o.outcome_users_percent,
+                        o.outcome_points_percent,
                         o.total_users,
                         COALESCE(e.resolved_at, e.created_at) AS ts,
                         e.event_id
@@ -138,11 +139,12 @@ class Bbbb87OnlineModelV2(SmartBetStrategyBase):
 
         weights = [0.0] * 6
         stats = _ReplayStats()
-        for selected_outcome_id, winning_outcome_id, odds, users_pct, total_users, _ts, _event_id in rows:
+        for selected_outcome_id, winning_outcome_id, odds, users_pct, points_pct, total_users, _ts, _event_id in rows:
             odds = float(odds or 1.01)
             users_pct = float(users_pct or 0.0)
             total_users = float(total_users or 0.0)
-            ratio = (users_pct / (100.0 / odds)) if odds > 0 else 1.0
+            points_pct = float(points_pct or 0.0)
+            ratio = (users_pct / points_pct) if points_pct > 0 else 1.0
             prior = stats.prior_win_rate(streamer, odds)
             confidence = self._confidence(total_users, odds)
             ev_proxy = prior * odds - 1.0
